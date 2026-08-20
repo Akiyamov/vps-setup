@@ -1,0 +1,56 @@
+---
+# tasks file for vps-setup
+- name: Copy ssh config
+  ansible.builtin.template:
+    src: 00-ssh.conf
+    dest: /etc/ssh/sshd_config.d/00-ssh.conf
+    owner: root
+    group: root
+    mode: '0644'
+- name: Daemon-reload
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+- name: install sudo
+  apt:
+    name: sudo
+    update_cache: yes
+- name: Restart ssh
+  service:
+    name: ssh
+    state: restarted
+- name: Add user
+  ansible.builtin.user:
+    name: "{{ user_to_create }}"
+    shell: /bin/bash
+    groups: sudo,docker
+    password: "{{ user_password | password_hash('sha512') }}"
+    append: yes
+    update_password: on_create
+- name: Add ssh_pbk to user
+  ansible.posix.authorized_key:
+    user: "{{ user_to_create }}"
+    state: "present"
+    key: "{{ ssh_public_key }}"
+- name: Ensure BBR kernel module is loaded
+  community.general.modprobe:
+    name: tcp_bbr
+    state: present
+- name: Set BBR
+  ansible.posix.sysctl:
+    name: net.core.default_qdisc
+    value: "fq"
+    state: present
+    reload: true
+- name: Set congestion control
+  ansible.posix.sysctl:
+    name: net.ipv4.tcp_congestion_control
+    value: "bbr"
+    state: present
+    reload: true
+- name: Verify BBR is enabled
+  shell: sysctl net.ipv4.tcp_congestion_control
+  register: bbr_check
+  changed_when: false
+- name: Show BBR status
+  debug:
+    msg: "Current congestion control: {{ bbr_check.stdout }}"
