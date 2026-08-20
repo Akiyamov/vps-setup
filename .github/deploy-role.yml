@@ -1,6 +1,7 @@
 name: Public to Ansible Galaxy
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
